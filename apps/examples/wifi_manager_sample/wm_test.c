@@ -203,8 +203,7 @@ static const wifi_manager_ap_crypto_type_e crypto_type_table[] = {
 	WIFI_MANAGER_CRYPTO_UNKNOWN,               /**<  unknown encryption             */
 };
 
-void
-print_wifi_ap_profile(wifi_manager_ap_config_s *config, char *title)
+void print_wifi_ap_profile(wifi_manager_ap_config_s *config, char *title)
 {
 	printf("====================================\n");
 	if (title) {
@@ -219,8 +218,7 @@ print_wifi_ap_profile(wifi_manager_ap_config_s *config, char *title)
 	printf("====================================\n");
 }
 
-void
-print_wifi_softap_profile(wifi_manager_softap_config_s *config, char *title)
+void print_wifi_softap_profile(wifi_manager_softap_config_s *config, char *title)
 {
 	printf("====================================\n");
 	if (title) {
@@ -283,13 +281,13 @@ wm_signal_init(void)
 
 	res = pthread_mutex_init(&g_wm_mutex, NULL);
 	if (res != 0) {
-		printf(" Pthread mutex init fail(%d) (%d)\n", res, errno);
+		printf("Pthread mutex init fail(%d) (%d)\n", res, errno);
 		return -1;
 	}
 
 	res = pthread_cond_init(&g_wm_cond, NULL);
 	if (res != 0) {
-		printf(" Conditional mutex init fail(%d) (%d)\n", res, errno);
+		printf("Conditional mutex init fail(%d) (%d)\n", res, errno);
 		return -1;
 	}
 
