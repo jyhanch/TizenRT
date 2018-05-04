@@ -29,6 +29,7 @@ MediaPlayerImpl::MediaPlayerImpl()
 	mPlayerObserver = nullptr;
 	mCurState = PLAYER_STATE_NONE;
 	mBuffer = nullptr;
+	mBufSize = 0;
 	mInputDataSource = nullptr;
 
 	static int playerId = 1;
@@ -67,8 +68,11 @@ player_result_t MediaPlayerImpl::destroy()
 	mSyncCv.wait(lock);
 	mpw.stopWorker();
 
-	PlayerObserverWorker& pow = PlayerObserverWorker::getWorker();
-	pow.stopWorker();
+	if (mPlayerObserver) {
+		PlayerObserverWorker& pow = PlayerObserverWorker::getWorker();
+		pow.stopWorker();
+		mPlayerObserver = nullptr;
+	}
 
 	mCurState = PLAYER_STATE_NONE;
 	return PLAYER_OK;
@@ -104,6 +108,11 @@ player_result_t MediaPlayerImpl::prepare()
 	}
 
 	mBufSize = get_output_frames_byte_size(get_output_frame_count());
+	if (mBufSize < 0) {
+		meddbg("MediaPlayer prepare fail : get_output_frames_byte_size fail\n");
+		return PLAYER_ERROR;
+	}
+
 	medvdbg("MediaPlayer mBuffer size : %d\n", mBufSize);
 
 	mBuffer = new unsigned char[mBufSize];
@@ -212,17 +221,19 @@ player_result_t MediaPlayerImpl::setVolume(int vol)
 		return PLAYER_ERROR;
 	}
 
-	if (vol < 0 || vol > 31) {
-		meddbg("MediaPlayer setVolume fail : invalid argument. volume level should be 0(Min) ~ 31(Max)\n");
+	int vol_max = get_max_audio_volume();
+	if (vol < 0 || vol > vol_max) {
+		meddbg("MediaPlayer setVolume fail : invalid argument. volume level should be 0(Min) ~ %d(Max)\n", vol_max);
 		return PLAYER_ERROR;
 	}
 
-	if (!set_output_audio_volume(vol)) {
-		mCurVolume = vol;
-		return PLAYER_OK;
-	} else {
+	if (set_output_audio_volume(vol) != AUDIO_MANAGER_SUCCESS) {
+		meddbg("MediaPlayer setVolume fail : audio manager failed\n", vol_max);
 		return PLAYER_ERROR;
 	}
+	
+	medvdbg("MediaPlayer setVolume success\n");
+	return PLAYER_OK;
 }
 
 player_result_t MediaPlayerImpl::setDataSource(std::unique_ptr<stream::InputDataSource> source)

@@ -19,14 +19,19 @@
 #include "RecorderObserverWorker.h"
 
 namespace media {
-unique_ptr<RecorderObserverWorker> RecorderObserverWorker::mWorker;
 once_flag RecorderObserverWorker::mOnceFlag;
 
-RecorderObserverWorker::RecorderObserverWorker() : mRefCnt(0)
+RecorderObserverWorker::RecorderObserverWorker() : mRefCnt(0), mIsRunning(false)
 {
 }
 RecorderObserverWorker::~RecorderObserverWorker()
 {
+}
+
+RecorderObserverWorker& RecorderObserverWorker::getWorker()
+{
+	static RecorderObserverWorker worker;
+	return worker;
 }
 
 int RecorderObserverWorker::entry()
@@ -34,16 +39,9 @@ int RecorderObserverWorker::entry()
 	medvdbg("RecorderObserverWorker::entry()\n");
 
 	while (mIsRunning) {
-		std::unique_lock<std::mutex> lock(mObserverQueue.getMutex());
-
-		if (mObserverQueue.isEmpty()) {
-			medvdbg("RecorderObserverWorker::entry() - wait Queue\n");
-			mObserverQueue.wait(lock);
-		}
-
-		if (!mObserverQueue.isEmpty()) {
-			std::function<void()> run = mObserverQueue.deQueue();
-			medvdbg("RecorderObserverWorker::entry() - pop Queue\n");
+		std::function<void()> run = mObserverQueue.deQueue();
+		medvdbg("RecorderObserverWorker::entry() - pop Queue\n");
+		if (run != nullptr) {
 			run();
 		}
 	}
@@ -73,10 +71,12 @@ void RecorderObserverWorker::stopWorker()
 	medvdbg("RecorderObserverWorker::stopWorker() - decrease RefCnt : %d\n", mRefCnt);
 
 	if (mRefCnt <= 0) {
-		mIsRunning = false;
 
 		if (mWorkerThread.joinable()) {
-			mObserverQueue.notify_one();
+			std::atomic<bool> &refBool = mIsRunning;
+			mObserverQueue.enQueue([&refBool]() {
+				refBool = false;
+			});
 			mWorkerThread.join();
 			medvdbg("RecorderObserverWorker::stopWorker() - mWorkerthread exited\n");
 		}

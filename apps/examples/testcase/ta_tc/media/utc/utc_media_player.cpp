@@ -17,10 +17,42 @@
  ****************************************************************************/
 
 #include <stdio.h>
+#include <condition_variable>
 #include <media/MediaPlayer.h>
 #include <media/FileInputDataSource.h>
 
 #define MEDIAPLAYER_TEST_FILE "/mnt/utc_media_player.raw"
+#define MEDIAPLAYER_MAX_VOLUME 10
+
+class TestObserver : public media::MediaPlayerObserverInterface
+{
+public:
+	std::condition_variable cv;
+	std::mutex mtx;
+	int value;
+	TestObserver() : value{0} {}
+	void onPlaybackStarted(Id id) override;
+	void onPlaybackFinished(Id id) override;
+	void onPlaybackError(Id id) override;
+};
+
+void TestObserver::onPlaybackStarted(Id id)
+{
+	value = 1;
+	cv.notify_one();
+}
+
+void TestObserver::onPlaybackFinished(Id id)
+{
+	value = 2;
+	cv.notify_one();
+}
+
+void TestObserver::onPlaybackError(Id id)
+{
+	value = 3;
+	cv.notify_one();
+}
 
 class SimpleMediaPlayerTest : public ::testing::Test
 {
@@ -32,7 +64,7 @@ protected:
 		fclose(fp);
 		source = std::move(std::unique_ptr<media::stream::FileInputDataSource>(
 			new media::stream::FileInputDataSource(MEDIAPLAYER_TEST_FILE)));
-		source->setSampleRate(16000);
+		source->setSampleRate(20000);
 		source->setChannels(2);
 		mp = new media::MediaPlayer();
 	}
@@ -93,6 +125,36 @@ TEST_F(SimpleMediaPlayerTest, setDataSourceWithNullptr)
 
 	EXPECT_EQ(mp->setDataSource(nullptr), media::PLAYER_ERROR);
 
+	mp->destroy();
+}
+
+TEST_F(SimpleMediaPlayerTest, setObserver)
+{
+	auto observer = std::make_shared<TestObserver>();
+	mp->create();
+	mp->setDataSource(std::move(source));
+	mp->setObserver(observer);
+	mp->prepare();
+
+	mp->pause();
+	{
+		std::unique_lock<std::mutex> lock(observer->mtx);
+		observer->cv.wait(lock);
+		EXPECT_EQ(observer->value, 3);
+	}
+
+	mp->start();
+	{
+		std::unique_lock<std::mutex> lock(observer->mtx);
+		observer->cv.wait(lock);
+		EXPECT_EQ(observer->value, 1);
+	}
+	{
+		std::unique_lock<std::mutex> lock(observer->mtx);
+		observer->cv.wait(lock);
+		EXPECT_EQ(observer->value, 2);
+	}
+	mp->unprepare();
 	mp->destroy();
 }
 
@@ -228,7 +290,7 @@ TEST_F(SimpleMediaPlayerTest, setVolume)
 	mp->setDataSource(std::move(source));
 	mp->prepare();
 
-	for (int vol = 0; vol <= 31; vol++) {
+	for (int vol = 0; vol <= MEDIAPLAYER_MAX_VOLUME; vol++) {
 		EXPECT_EQ(mp->setVolume(vol), media::PLAYER_OK);
 	}
 
@@ -243,7 +305,7 @@ TEST_F(SimpleMediaPlayerTest, setVolumeWithOutOfRangeValue)
 	mp->prepare();
 
 	EXPECT_EQ(mp->setVolume(-1), media::PLAYER_ERROR);
-	EXPECT_EQ(mp->setVolume(32), media::PLAYER_ERROR);
+	EXPECT_EQ(mp->setVolume(MEDIAPLAYER_MAX_VOLUME + 1), media::PLAYER_ERROR);
 
 	mp->unprepare();
 	mp->destroy();
@@ -255,7 +317,7 @@ TEST_F(SimpleMediaPlayerTest, getVolume)
 	mp->setDataSource(std::move(source));
 	mp->prepare();
 
-	for (int vol = 0; vol <= 31; vol++) {
+	for (int vol = 0; vol <= MEDIAPLAYER_MAX_VOLUME; vol++) {
 		mp->setVolume(vol);
 		EXPECT_EQ(mp->getVolume(), vol);
 	}

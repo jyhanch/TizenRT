@@ -44,8 +44,14 @@ class MediaPlayerTest : public MediaPlayerObserverInterface, public enable_share
 
 	void start();
 
-	MediaPlayerTest() { cout << "App start" << endl; }
-	~MediaPlayerTest() { cout << "App terminate" << endl; }
+	MediaPlayerTest() : volume(0)
+	{
+		cout << "App start" << endl;
+	}
+	~MediaPlayerTest() 
+	{
+		cout << "App terminate" << endl;
+	}
 
   private:
 	void printMenu();
@@ -81,16 +87,21 @@ void MediaPlayerTest::onPlaybackError(Id id)
 
 void MediaPlayerTest::start(void)
 {
+	/**
+	 * Turn on the feature to Test.
+	 */
 #define TEST_MP3
 #undef TEST_AAC
 	
 #if defined(TEST_MP3)
 	auto source = std::move(unique_ptr<FileInputDataSource>(new FileInputDataSource("/rom/over_16000.mp3")));
+	source->setSampleRate(16000);
+	source->setChannels(2);
 #elif defined(TEST_AAC)
 	auto source = std::move(unique_ptr<FileInputDataSource>(new FileInputDataSource("/rom/play.mp4")));
 #else
-	auto source = std::move(unique_ptr<FileInputDataSource>(new FileInputDataSource("/rom/record")));
-	source->setSampleRate(16000);
+	auto source = std::move(unique_ptr<FileInputDataSource>(new FileInputDataSource("/rom/44100.pcm")));
+	source->setSampleRate(44100);
 	source->setChannels(2);
 #endif
 

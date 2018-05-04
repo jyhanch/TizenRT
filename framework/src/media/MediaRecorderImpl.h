@@ -88,15 +88,14 @@ public:
 	void capture();
 
 private:
-	recorder_state_t mCurState;
+	std::atomic<recorder_state_t> mCurState;
 	std::unique_ptr<stream::OutputDataSource> mOutputDataSource;
 	std::shared_ptr<MediaRecorderObserverInterface> mRecorderObserver;
 
 	unsigned char* mBuffer;
-	unsigned int mBuffSize;
+	int mBuffSize;
 	mutex mCmdMtx; // command mutex
 	std::condition_variable mSyncCv;
-	int mCurVolume;
 	int mId;
 };
 } // namespace media

@@ -77,13 +77,11 @@ public:
 	int playback(int size);
 
 public:
-	player_state_t mCurState;
+	std::atomic<player_state_t> mCurState;
 	unsigned char* mBuffer;
-	unsigned int mBufSize;
-	static int mRefCnt;
+	int mBufSize;
 	std::mutex mCmdMtx;
 	std::condition_variable mSyncCv;
-	int mCurVolume;
 	std::shared_ptr<MediaPlayerObserverInterface> mPlayerObserver;
 	std::unique_ptr<stream::InputDataSource> mInputDataSource;
 	int mId;

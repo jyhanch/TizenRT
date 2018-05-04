@@ -65,9 +65,11 @@ recorder_result_t MediaRecorderImpl::destroy()
 	mrw.getQueue().enQueue(&MediaRecorderImpl::notifySync, shared_from_this());
 	mSyncCv.wait(lock);
 
-	RecorderObserverWorker& row = RecorderObserverWorker::getWorker();
-	row.stopWorker();
-	mRecorderObserver = nullptr;
+	if (mRecorderObserver) {
+		RecorderObserverWorker& row = RecorderObserverWorker::getWorker();
+		row.stopWorker();
+		mRecorderObserver = nullptr;
+	}
 
 	mrw.stopWorker();
 
@@ -106,6 +108,14 @@ recorder_result_t MediaRecorderImpl::prepare()
 	}
 
 	mBuffSize = get_input_frames_byte_size(get_input_frame_count());
+
+	if (mBuffSize < 0) {
+		meddbg("MediaRecorderImpl::prepare() - get_input_frames_byte_size(get_input_frame_count()) failed\n");
+		return RECORDER_ERROR;
+	}
+
+	medvdbg("MediaRecorder mBuffer size : %d\n", mBuffSize);
+
 	mBuffer = new unsigned char[mBuffSize];
 	if (!mBuffer) {
 		meddbg("MediaRecorderImpl::prepare() - mBuffer alloc failed\n");
@@ -188,10 +198,10 @@ int MediaRecorderImpl::getVolume()
 
 	if (mCurState == RECORDER_STATE_IDLE || mCurState == RECORDER_STATE_NONE) {
 		meddbg("MediaRecorderImpl::getVolume() - mCurState == RECORDER_STATE_IDLE || mCurState == RECORDER_STATE_NONE\n");
-		return 0;
+		return -1;
 	}
 
-	return mCurVolume;
+	return get_input_audio_volume();
 }
 
 recorder_result_t MediaRecorderImpl::setVolume(int vol)
@@ -204,7 +214,18 @@ recorder_result_t MediaRecorderImpl::setVolume(int vol)
 		return RECORDER_ERROR;
 	}
 
-	mCurVolume = vol;
+	int maxVolume = get_max_audio_volume();
+	if (vol < 0 || vol > maxVolume) {
+		meddbg("MediaRecorderImpl::setVolume(int vol) : incorrect vol range (recorder ranage 0 ~ %d)\n", maxVolume);
+		return RECORDER_ERROR;
+	}
+
+	if (set_input_audio_volume(vol) != AUDIO_MANAGER_SUCCESS) {
+		meddbg("MediaRecorderImpl::setVolume(int vol) : set_input_audio_volume(vol) != AUDIO_MANAGER_SUCCESS\n", maxVolume);
+		return RECORDER_ERROR;
+	}
+
+	medvdbg("MediaRecorderImpl::setVolume is success(int vol)\n");
 	return RECORDER_OK;
 }
 
